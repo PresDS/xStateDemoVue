@@ -4,72 +4,74 @@
             Flip Card
         </button>
 
-        <div :class="['card', cardFlippedStyles]">
-            <div class="card-inner">
-                <div class="card-front">
-                    <p>{{ amountToIncrement }}</p>
-                </div>
-                <div class="card-back">
-                    <p>Card Back</p>
-                </div>
-            </div>
+        <div class="card-container">
+            <Card v-for="card in sampleCards" :id="card.id" :amount="card.amount" :userId="card.userId"
+                :cardGameState="cardGameState" />
         </div>
 
-        <div v-if="state.matches('cardFlipped')" class="card-flipped">
+        <div v-if="cardGameState.matches('cardFlipped')" class="card-flipped">
             <p>The card is flipped!</p>
             <button @click="send({ type: 'UPDATE_TOTAL' })" class="update-total-button">
                 Update Total
             </button>
         </div>
 
-        <div v-if="state.matches('updatingTotal')" class="side-panel updating">
+        <div v-if="cardGameState.matches('updatingTotal')" class="side-panel updating">
             <p>Updating Total...</p>
         </div>
 
-        <div v-if="state.matches('waitingForNextTurn')" class="waiting">
+        <div v-if="cardGameState.matches('waitingForNextTurn')" class="waiting">
             <p>Waiting for next turn...</p>
             <button @click="send({ type: 'START_NEW_TURN' })">Start New Turn</button>
         </div>
 
         <!-- Side panel with the updated total -->
-        <div :class="['side-panel', state.matches('updatingTotal') ? 'updating' : '']">
+        <div :class="['side-panel', cardGameState.matches('updatingTotal') ? 'updating' : '']">
             <h2>Total: {{ total }}</h2>
         </div>
     </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { useMachine } from '@xstate/vue'
-import { cardGameMachine } from '../machines/cardGameMachine'
-import { computed, ref, watch, watchEffect } from 'vue'
+import { cardGameMachine } from '../machines/cardGameMachine.ts'
+import { ref, watch } from 'vue'
+import Card from './Card.vue'
+import { sampleCards } from '../data/sampleCards.ts'
 
-const { state, send } = useMachine(cardGameMachine)
-const total = ref(0)
-const amountToIncrement = ref(4)
-console.log('INITIAL STATE', state)
+interface Card {
+    id: string
+    userId: string
+    amount: number
+}
 
-watch(state, (newValue, oldValue) => {
+const { snapshot: cardGameState, send } = useMachine(cardGameMachine)
+const total = ref<number>(0)
+const amountToIncrement = ref<number>(4)
+console.log('INITIAL STATE', cardGameState)
+
+watch(cardGameState, (newValue, oldValue) => {
     console.log(
         `%cstate changed from: %c${oldValue.value} %cto: %c${newValue.value}`,
-        'color: gray',         // 'state changed from:'
-        'color: red; font-weight: bold', // old state
-        'color: gray',         // 'to:'
-        'color: green; font-weight: bold' // new state
+        'color: gray',
+        'color: red; font-weight: bold',
+        'color: gray',
+        'color: green; font-weight: bold'
     )
 
-
-    if (state.value.matches('updatingTotal')) {
+    if (cardGameState.value.matches('updatingTotal')) {
         updateTotal()
     }
 
-    if (state.value.matches('flippingCard')) {
+    if (cardGameState.value.matches('flippingCard')) {
+        // Play audio
         setTimeout(() => {
             send({ type: 'CARD_FLIPPED' })
-        }, 1000) // match the CSS animation time
+        }, 1000)
     }
 })
-// Example of updating the total when the card is flipped
-const updateTotal = () => {
+
+const updateTotal = (): void => {
     console.log('updateTotal')
     const newAmount = total.value + amountToIncrement.value
     const interval = setInterval(() => {
@@ -79,23 +81,12 @@ const updateTotal = () => {
             clearInterval(interval)
             send({ type: 'TOTAL_UPDATED' })
         }
-    }, 1000) // change this speed as desired
-
+    }, 200)
 
     setTimeout(() => {
         send({ type: 'TOTAL_UPDATED' })
     }, 4000)
 }
-
-
-const cardFlippedStyles = computed(() => {
-    let styles = ''
-    if (state.value.matches('flippingCard') || state.value.value !== 'idle') {
-        styles += 'flipping'
-    }
-    return styles;
-
-});
 
 </script>
 
@@ -116,55 +107,9 @@ const cardFlippedStyles = computed(() => {
     cursor: pointer;
 }
 
-.card {
-    width: 200px;
-    height: 300px;
-    perspective: 1000px;
-    margin-bottom: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.card-inner {
-    width: 100%;
-    height: 100%;
-    position: relative;
-    transform-style: preserve-3d;
-    transition: transform 1s;
-}
-
-.card.flipping .card-inner {
-    transform: rotateY(180deg);
-}
-
-.card-front,
-.card-back {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    backface-visibility: hidden;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 24px;
-    font-weight: bold;
-}
-
-.card-back {
-    background-color: #e74c3c;
-    color: white;
-}
-
-.card-front {
-    background-color: #2ecc71;
-    color: white;
-    transform: rotateY(180deg);
-}
-
-.card-flipped {
-    margin-top: 20px;
-    font-size: 24px;
+.card-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
 }
 
 .update-total-button {
