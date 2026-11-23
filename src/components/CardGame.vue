@@ -1,35 +1,42 @@
 <template>
+
+    <button @click="handleFlip" class="flip-button">
+        Flip Card
+    </button>
+
     <div class="game-container">
-        <button @click="send({ type: 'FLIP_CARD' })" class="flip-button">
-            Flip Card
-        </button>
+
+
+        <div :class="['side-panel']">
+            <div v-if="cardGameState.matches('cardFlipped')" class="card-flipped">
+                <button @click="send({ type: 'UPDATE_TOTAL' })" class="update-total-button">
+                    Update Total
+                </button>
+            </div>
+
+            <div v-if="cardGameState.matches('updatingTotal')" class="side-panel updating">
+                <p>Updating Total...</p>
+            </div>
+
+            <div v-if="cardGameState.matches('waitingForNextTurn')" class="waiting">
+                <p>Waiting for next turn...</p>
+                <button @click="send({ type: 'START_NEW_TURN' })">Start New Turn</button>
+            </div>
+
+            <ul>
+                <li v-for="user in users">
+                    <p>{{ user.name }}</p>
+                    <p>{{ user.total }}</p>
+                </li>
+            </ul>
+        </div>
 
         <div class="card-container">
-            <Card v-for="card in sampleCards" :id="card.id" :amount="card.amount" :userId="card.userId"
-                :cardGameState="cardGameState" />
-        </div>
-
-        <div v-if="cardGameState.matches('cardFlipped')" class="card-flipped">
-            <p>The card is flipped!</p>
-            <button @click="send({ type: 'UPDATE_TOTAL' })" class="update-total-button">
-                Update Total
-            </button>
-        </div>
-
-        <div v-if="cardGameState.matches('updatingTotal')" class="side-panel updating">
-            <p>Updating Total...</p>
-        </div>
-
-        <div v-if="cardGameState.matches('waitingForNextTurn')" class="waiting">
-            <p>Waiting for next turn...</p>
-            <button @click="send({ type: 'START_NEW_TURN' })">Start New Turn</button>
-        </div>
-
-        <!-- Side panel with the updated total -->
-        <div :class="['side-panel', cardGameState.matches('updatingTotal') ? 'updating' : '']">
-            <h2>Total: {{ total }}</h2>
+            <Card v-for="card in cards" :id="card.id" :amount="card.amount" :userId="card.userId"
+                :active="isCardActive(card)" :cardGameState="cardGameState" />
         </div>
     </div>
+
 </template>
 
 <script setup lang="ts">
@@ -38,6 +45,7 @@ import { cardGameMachine } from '../machines/cardGameMachine.ts'
 import { ref, watch } from 'vue'
 import Card from './Card.vue'
 import { sampleCards } from '../data/sampleCards.ts'
+import { sampleUsers } from '../data/sampleUsers.ts'
 
 interface Card {
     id: string
@@ -47,7 +55,11 @@ interface Card {
 
 const { snapshot: cardGameState, send } = useMachine(cardGameMachine)
 const total = ref<number>(0)
-const amountToIncrement = ref<number>(4)
+const activeCardIndex = ref<number>(0);
+const activeCard = ref<Card>(sampleCards[0])
+const cards = ref(sampleCards)
+const users = ref(sampleUsers)
+
 console.log('INITIAL STATE', cardGameState)
 
 watch(cardGameState, (newValue, oldValue) => {
@@ -71,15 +83,34 @@ watch(cardGameState, (newValue, oldValue) => {
     }
 })
 
+const isCardActive = (card: Card) => {
+    return sampleCards[activeCardIndex.value]?.id === card.id
+}
+
+const handleFlip = () => {
+    send({ type: 'FLIP_CARD' })
+
+}
+
+const setNextCard = () => {
+    if (activeCardIndex.value <= sampleCards.length) {
+        activeCardIndex.value += 1;
+        activeCard.value = sampleCards[activeCardIndex.value]
+    }
+}
+
 const updateTotal = (): void => {
     console.log('updateTotal')
-    const newAmount = total.value + amountToIncrement.value
+    const userToUpdate = users.value.find(u => u.id === activeCard.value.userId)!
+    const newAmount = userToUpdate.total + activeCard.value.amount
     const interval = setInterval(() => {
-        if (total.value < newAmount) {
-            total.value += 1
+        if (userToUpdate.total < newAmount) {
+            userToUpdate.total += 1
         } else {
             clearInterval(interval)
             send({ type: 'TOTAL_UPDATED' })
+
+            setNextCard()
         }
     }, 200)
 
@@ -93,9 +124,10 @@ const updateTotal = (): void => {
 <style scoped>
 .game-container {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
     padding: 20px;
+    width: 100%;
 }
 
 .flip-button {
@@ -122,36 +154,34 @@ const updateTotal = (): void => {
 }
 
 .side-panel {
-    position: absolute;
+    /* position: absolute; */
     margin-top: 30px;
     padding: 20px;
-    background-color: #f39c12;
+    background-color: #28252b;
     color: black;
-    width: 250px;
-    height: 100px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
     font-size: 24px;
     font-weight: bold;
-    opacity: 0;
-    transform: translateX(100%);
-    transition: opacity 1s, transform 1s;
 }
 
-.side-panel.updating {
-    opacity: 1;
-    transform: translateX(0);
+.side-panel ul {
+    list-style-type: none;
+}
+
+.side-panel ul li {
+    color: white;
+    background-color: #8e44ad;
+    border-radius: 12px;
 }
 
 .waiting {
     margin-top: 20px;
     font-size: 20px;
+    color: yellow;
 }
 
 .waiting button {
     padding: 10px 20px;
-    background-color: #8e44ad;
+    background-color: #4486ad;
     color: white;
     border: none;
     cursor: pointer;

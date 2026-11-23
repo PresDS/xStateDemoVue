@@ -5,31 +5,35 @@
                 <p>{{ amount }}</p>
             </div>
             <div class="card-back">
-                <p>Card Back</p>
+                <p>{{ userForCard?.name ?? 'n/a' }}</p>
             </div>
         </div>
     </div>
 </template>
 <script setup lang="ts">
-import { computed, onBeforeMount } from 'vue'
-import { StateFrom, StateMachine } from 'xstate';
+import { computed, onBeforeMount } from 'vue';
+import { sampleUsers } from '../data/sampleUsers';
 
 interface CardProps {
     id: string
     amount: number
     userId: string
     cardGameState: any
+    active: boolean;
 }
 
-const { id, amount, userId, cardGameState } = defineProps<CardProps>()
+const { id, amount, userId, cardGameState, active } = defineProps<CardProps>()
 
 onBeforeMount(() => {
     console.log('cardGameState', cardGameState)
 })
 
+const users = computed(() => sampleUsers)
+const userForCard = computed(() => users.value.find(u => u.id === userId))
+
 const cardFlippedStyles = computed(() => {
     let styles = ''
-    if (cardGameState.matches('flippingCard') || cardGameState.value !== 'idle') {
+    if (active && (cardGameState.matches('flippingCard') || cardGameState.matches('updatingTotal'))) {
         styles += 'flipping'
     }
     return styles
@@ -38,8 +42,8 @@ const cardFlippedStyles = computed(() => {
 </script>
 <style>
 .card {
-    width: 200px;
-    height: 300px;
+    width: 100px;
+    height: 200px;
     perspective: 1000px;
     margin-bottom: 20px;
     display: flex;
