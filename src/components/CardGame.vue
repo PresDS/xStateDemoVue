@@ -1,6 +1,6 @@
 <template>
 
-    <button @click="handleFlip" class="flip-button">
+    <button @click="send({ type: 'FLIP_CARD' })" :disabled="!cardGameState.matches('idle')" class="flip-button">
         Flip Card
     </button>
 
@@ -23,16 +23,21 @@
                 <button @click="send({ type: 'START_NEW_TURN' })">Start New Turn</button>
             </div>
 
+            <div v-if="cardGameState.matches('gameOver')" class="waiting">
+                <p>Game over!</p>
+                <button @click="send({ type: 'RESTART' })">Play Again</button>
+            </div>
+
             <ul>
-                <li v-for="user in users">
+                <li v-for="user in cardGameState.context.users" :key="user.id">
                     <p>{{ user.name }}</p>
-                    <p>{{ user.total }}</p>
+                    <p>{{ displayedTotals[user.id] ?? 0 }}</p>
                 </li>
             </ul>
         </div>
 
         <div class="card-container">
-            <Card v-for="card in cards" :id="card.id" :amount="card.amount" :userId="card.userId"
+            <Card v-for="card in cardGameState.context.cards" :key="card.id" :id="card.id" :amount="card.amount" :userId="card.userId"
                 :active="isCardActive(card)" :cardGameState="cardGameState" />
         </div>
     </div>
@@ -41,84 +46,39 @@
 
 <script setup lang="ts">
 import { useMachine } from '@xstate/vue'
-import { cardGameMachine } from '../machines/cardGameMachine.ts'
-import { ref, watch } from 'vue'
+import { cardGameMachine, type CardData } from '../machines/cardGameMachine'
+import { reactive, watch } from 'vue'
 import Card from './Card.vue'
-import { sampleCards } from '../data/sampleCards.ts'
-import { sampleUsers } from '../data/sampleUsers.ts'
-
-interface Card {
-    id: string
-    userId: string
-    amount: number
-}
 
 const { snapshot: cardGameState, send } = useMachine(cardGameMachine)
-const total = ref<number>(0)
-const activeCardIndex = ref<number>(0);
-const activeCard = ref<Card>(sampleCards[0])
-const cards = ref(sampleCards)
-const users = ref(sampleUsers)
 
-console.log('INITIAL STATE', cardGameState)
+const isCardActive = (card: CardData) =>
+    cardGameState.value.context.cards[cardGameState.value.context.activeCardIndex]?.id === card.id
 
-watch(cardGameState, (newValue, oldValue) => {
-    console.log(
-        `%cstate changed from: %c${oldValue.value} %cto: %c${newValue.value}`,
-        'color: gray',
-        'color: red; font-weight: bold',
-        'color: gray',
-        'color: green; font-weight: bold'
-    )
+// The machine owns the real totals; this only animates the displayed count.
+const displayedTotals = reactive<Record<string, number>>({})
 
-    if (cardGameState.value.matches('updatingTotal')) {
-        updateTotal()
+const animateTo = (userId: string, target: number) => {
+    const start = displayedTotals[userId] ?? 0
+    if (target <= start) {
+        displayedTotals[userId] = target
+        return
     }
-
-    if (cardGameState.value.matches('flippingCard')) {
-        // Play audio
-        setTimeout(() => {
-            send({ type: 'CARD_FLIPPED' })
-        }, 1000)
+    const duration = 1500
+    const t0 = performance.now()
+    const step = (now: number) => {
+        const progress = Math.min((now - t0) / duration, 1)
+        displayedTotals[userId] = Math.round(start + (target - start) * progress)
+        if (progress < 1) requestAnimationFrame(step)
     }
-})
-
-const isCardActive = (card: Card) => {
-    return sampleCards[activeCardIndex.value]?.id === card.id
+    requestAnimationFrame(step)
 }
 
-const handleFlip = () => {
-    send({ type: 'FLIP_CARD' })
-
-}
-
-const setNextCard = () => {
-    if (activeCardIndex.value <= sampleCards.length) {
-        activeCardIndex.value += 1;
-        activeCard.value = sampleCards[activeCardIndex.value]
-    }
-}
-
-const updateTotal = (): void => {
-    console.log('updateTotal')
-    const userToUpdate = users.value.find(u => u.id === activeCard.value.userId)!
-    const newAmount = userToUpdate.total + activeCard.value.amount
-    const interval = setInterval(() => {
-        if (userToUpdate.total < newAmount) {
-            userToUpdate.total += 1
-        } else {
-            clearInterval(interval)
-            send({ type: 'TOTAL_UPDATED' })
-
-            setNextCard()
-        }
-    }, 200)
-
-    setTimeout(() => {
-        send({ type: 'TOTAL_UPDATED' })
-    }, 4000)
-}
-
+watch(
+    () => cardGameState.value.context.users,
+    (users) => users.forEach((u) => animateTo(u.id, u.total)),
+    { immediate: true }
+)
 </script>
 
 <style scoped>

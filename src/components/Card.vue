@@ -11,7 +11,7 @@
     </div>
 </template>
 <script setup lang="ts">
-import { computed, onBeforeMount } from 'vue';
+import { computed } from 'vue';
 import { sampleUsers } from '../data/sampleUsers';
 
 interface CardProps {
@@ -22,18 +22,14 @@ interface CardProps {
     active: boolean;
 }
 
-const { id, amount, userId, cardGameState, active } = defineProps<CardProps>()
-
-onBeforeMount(() => {
-    console.log('cardGameState', cardGameState)
-})
+const { amount, userId, cardGameState, active } = defineProps<CardProps>()
 
 const users = computed(() => sampleUsers)
 const userForCard = computed(() => users.value.find(u => u.id === userId))
 
 const cardFlippedStyles = computed(() => {
     let styles = ''
-    if (active && (cardGameState.matches('flippingCard') || cardGameState.matches('updatingTotal'))) {
+    if (active && (['flippingCard', 'cardFlipped', 'updatingTotal'].some((s) => cardGameState.matches(s)))) {
         styles += 'flipping'
     }
     return styles
@@ -43,7 +39,7 @@ const cardFlippedStyles = computed(() => {
 <style>
 .card {
     width: 100px;
-    height: 200px;
+    height: 100px;
     perspective: 1000px;
     margin-bottom: 20px;
     display: flex;
